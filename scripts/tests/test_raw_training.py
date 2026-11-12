@@ -88,17 +88,17 @@ def test_raw_training_and_viewer_return_identical_exact_frames(raw, monkeypatch)
 
 def test_published_episode_matches_stream_tensor_preprocessing(raw, tmp_path, monkeypatch):
     from policy import training_utils as training
-    legacy = tmp_path / 'legacy.zarr'
+    published = tmp_path / 'published.zarr'
     from data_processing.episode_store import publish_episode
-    publish_episode(legacy, [(raw, np.arange(9))])
+    publish_episode(published, [(raw, np.arange(9))])
     stats, lengths = training.get_norm_stats([str(raw)], observation_name=['qpos','qvel'])
     args = dict(masking_strategy=None, camera_names=['video_left','video_overhead'], norm_stats=stats,
         episode_ids=[0], episode_len=lengths, chunk_size=3, policy_class='Flow', width=27, height=19,
         observation_name=['qpos','qvel'], history_len=2, grayscale=True)
     raw_data = training.EpisodicDataset(dataset_path_list=[str(raw)], **args)
-    legacy_data = training.EpisodicDataset(dataset_path_list=[str(legacy)], **args)
+    published_data = training.EpisodicDataset(dataset_path_list=[str(published)], **args)
     for index in (0,2,5,8):
-        for actual, expected in zip(raw_data[index], legacy_data[index]):
+        for actual, expected in zip(raw_data[index], published_data[index]):
             torch.testing.assert_close(actual, expected, rtol=0, atol=0)
 
 

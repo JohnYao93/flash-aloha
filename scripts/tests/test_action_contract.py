@@ -147,7 +147,7 @@ def test_explicit_relative_contract_cannot_be_overridden(declaration):
         require_absolute_actions(declaration, {'action_command_style': 'absolute'})
 
 
-def test_legacy_and_explicit_absolute_contracts():
+def test_explicit_absolute_contract_is_accepted():
     assert require_absolute_actions({}, {'policy_config': {'action_command_style': b'absolute'}}) == 'absolute'
 
 

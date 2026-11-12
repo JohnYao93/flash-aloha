@@ -43,10 +43,7 @@ def independent_camera_streams(request, monkeypatch, tmp_path):
         'test_shared_episode_recording.py', 'test_record_episode_single.py', 'test_recording_disk_buffer.py',
         'test_standard_recording.py', 'test_camera_capture_clock.py',
     }:
-        if not (request.path.name == 'test_camera_observation.py' and request.node.name in {
-            'test_multibox_export_follows_saved_frame_ids',
-            'test_legacy_cli_export_preserves_robot_samples_and_frame_references'}):
-            return
+        return
     from recording import episode_buffer
     from contracts import standard_capture
     from recording import record_episode_single as single

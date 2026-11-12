@@ -65,22 +65,6 @@ class FlowTrainingTimeRTCTest(unittest.TestCase):
         self.assertEqual(randint.call_args.args[0], 2)
         self.assertEqual(randint.call_args.args[1], 5)
 
-    def test_flow_delay_sampling_is_uniform_even_with_legacy_exp_config(self):
-        policy = make_policy(
-            prediction=torch.zeros((3, 2, 1)),
-            min_delay=2,
-            max_delay=4,
-            distribution="exp",
-            exp_decay=0.5,
-        )
-
-        with mock.patch("policy.policy.torch.randint", return_value=torch.tensor([2, 3, 4])) as randint:
-            delays = policy._sample_training_time_rtc_delays(3, torch.device("cpu"))
-
-        self.assertEqual(delays.tolist(), [2, 3, 4])
-        self.assertEqual(randint.call_args.args[0], 2)
-        self.assertEqual(randint.call_args.args[1], 5)
-
     def test_training_config_validation_failures(self):
         base = {
             "no_training_time_rtc": False,

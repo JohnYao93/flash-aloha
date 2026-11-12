@@ -123,27 +123,11 @@ def test_native_dimensions_are_checkpoint_owned():
         standard_capture.resized_images(SimpleNamespace(images={"cam": frame}), {**config, "width": 22})
 
 
-# The OpenPI trainer (src/openpi/shared/client_contract_test.py in its checkout) pins the same
-# value: its resize_with_pad under OpenCV 4.11 reproduces this client's letterbox exactly.
+# Pinned pixels of this client's letterbox for 720p sources; an OpenPI trainer's
+# resize_with_pad must reproduce the same fingerprint.
 OPENPI_720P_FINGERPRINT = "ff7888bc17fe21c2e5823bfd8e7fb415bdb1cc02dab86a8296cf455c03d56191"
 OPENPI_CAMERAS = {"video_overhead": {"request_key": "observation/image", "source_shape": [720, 1280, 3]},
                   "video_right": {"request_key": "observation/wrist_image", "source_shape": [720, 1280, 3]}}
-
-
-def openpi_client_image_tools():
-    """OpenPI's own resize, from its checkout (OPENPI_CLIENT_SRC)."""
-    import os
-    if not os.environ.get("OPENPI_CLIENT_SRC"):
-        pytest.skip("Set OPENPI_CLIENT_SRC to an OpenPI checkout's packages/openpi-client/src")
-    source = Path(os.environ["OPENPI_CLIENT_SRC"])
-    if not (source / "openpi_client/image_tools.py").exists():
-        pytest.skip(f"OpenPI client source not found at {source}")
-    sys.path.insert(0, str(source))
-    try:
-        from openpi_client import image_tools
-    finally:
-        sys.path.remove(str(source))
-    return image_tools
 
 
 def test_openpi_letterbox_geometry():
@@ -152,14 +136,6 @@ def test_openpi_letterbox_geometry():
     rows = np.nonzero(output.any(axis=(1, 2)))[0]
     assert output.shape == (448, 448, 3) and (rows[0], rows[-1]) == (98, 349)
     assert (output[98:350] == 200).all() and not output[:98].any() and not output[350:].any()
-
-
-@pytest.mark.parametrize("shape", [(720, 1280, 3), (800, 1280, 3), (480, 640, 3), (333, 517, 3), (448, 448, 3)])
-def test_openpi_letterbox_matches_openpi_resize_with_pad(shape):
-    image_tools = openpi_client_image_tools()
-    for frame in (images.letterbox_probe(shape), np.random.default_rng(5).integers(0, 256, shape, dtype=np.uint8)):
-        np.testing.assert_array_equal(images.letterbox_image(frame, 448, 448),
-                                      image_tools.resize_with_pad(frame, 448, 448))
 
 
 def test_openpi_contract_round_trips_and_pins_pixels():

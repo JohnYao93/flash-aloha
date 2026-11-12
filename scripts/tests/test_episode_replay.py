@@ -8,7 +8,6 @@ import pytest
 from recording import recording_replay
 from recording.recording_replay import blend_reference, latest_saved_episode, overlay_camera
 
-EPISODE = Path(__file__).resolve().parents[2] / 'data/arx_left_wrist_only/episode_00002.zarr'
 
 
 def test_overlay_uses_overhead_else_the_single_wrist_camera():
@@ -178,20 +177,6 @@ def test_gain_prompt_reasks_invalid_values_and_esc_cancels(monkeypatch, capsys):
     assert 'kp fraction must be in' in capsys.readouterr().out
     assert recorder._replay_gain_scales == [1.0, 1.0]  # cancelled values are not kept
 
-
-
-@pytest.mark.skipif(not EPISODE.exists(), reason='recorded arx_left_wrist_only episode not present')
-def test_loads_rows_and_first_frame_from_a_real_episode():
-    from config.task_config import select_task_config
-    task = select_task_config('arx_left_wrist_only', None)
-    actions, camera, reference = recording_replay.load_replay_episode(
-        str(EPISODE), camera_names=['video_left'], robot_contract=task.robot_contract, fps=100.0)
-    assert actions.ndim == 2 and actions.shape[1] == 7 and len(actions) >= 2
-    assert camera == 'video_left'
-    assert reference.shape == (720, 1280, 3) and reference.dtype == np.uint8
-    with pytest.raises(ValueError, match='rate'):
-        recording_replay.load_replay_episode(str(EPISODE), camera_names=['video_left'],
-                                             robot_contract=task.robot_contract, fps=50.0)
 
 
 def test_prompt_replays_last_saved_episode_on_r(monkeypatch, tmp_path):

@@ -137,7 +137,7 @@ def test_live_entrypoints_reuse_standard_capture(path, required):
 
 
 
-def test_clock_contract_rejects_legacy_and_replaced_segments(tmp_path):
+def test_clock_contract_rejects_unpublished_and_replaced_segments(tmp_path):
     from types import SimpleNamespace
     from camera_utils.camera_timing import publish_shared_clock_contract, validate_shared_clock_contract
     segment = tmp_path / 'fake_segment'

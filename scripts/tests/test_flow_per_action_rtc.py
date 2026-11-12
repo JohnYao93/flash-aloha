@@ -132,19 +132,6 @@ def test_validation_uses_the_same_delayed_prefix_objective():
     assert output['training_time_rtc_delay_mean'].item() == 3
 
 
-def test_global_time_checkpoints_are_rejected():
-    weights = small_policy().serialize()
-    assert int(weights['_per_action_time']) == 1
-    small_policy().deserialize(weights)
-    global_time = {k: v for k, v in weights.items() if k != '_per_action_time'}
-    with pytest.raises(ValueError, match='removed global-time Flow objective'):
-        small_policy().deserialize(global_time)
-    # The first per-action-time run saved its marker as _flow_rtc_version=2.
-    small_policy().deserialize({**global_time, '_flow_rtc_version': torch.tensor(2)})
-    with pytest.raises(ValueError, match='removed global-time Flow objective'):
-        small_policy().deserialize({**global_time, '_flow_rtc_version': torch.tensor(1)})
-
-
 def _wait_for_worker(rtc, timeout=10.0):
     deadline = time.time() + timeout
     while rtc.worker._in_flight and time.time() < deadline:

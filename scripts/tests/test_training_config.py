@@ -156,7 +156,7 @@ assert not {'torch', 'policy.imitate_episodes_train', 'recording.record_episode_
     assert not list(tmp_path.iterdir())
 
 
-def test_legacy_cli_naming_is_unchanged():
+def test_cli_checkpoint_directory_naming():
     args = vars(build_parser().parse_args(['--task_name', 'arx_right', '--chunk_size', '100', '--ckpt_dir', 'ckpts/base']))
     assert training_summary(args)['ckpt_dir'] == 'ckpts/base_arx_right_ACT_resnet18_False_None'
 

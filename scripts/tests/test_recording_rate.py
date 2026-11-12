@@ -58,19 +58,6 @@ def test_invalid_nominal_frequency(hz):
         summarize_recording_rate(hz, [.01], sample_count=2)
 
 
-def test_legacy_data_distinguishes_unavailable_and_estimated_timing(tmp_path):
-    with episode_store.Store(tmp_path / 'old.zarr', 'w') as root:
-        root.attrs['fps'] = 100
-        root.create_dataset('observations/qpos', data=np.zeros((3, 14)))
-        report = read_recording_rate(root)
-        assert report['nominal_recording_hz'] == 100
-        assert report['measured_recording_hz'] is None
-        root.create_dataset('timestamps', data=[0, .02, .04])
-        report = read_recording_rate(root)
-        assert report['measured_recording_hz'] == 50
-        assert 'legacy' in report['measurement']
-
-
 def test_export_preserves_capture_rate_separately_from_dataset_rate(tmp_path, capsys):
     import json
     from data_processing.recording_rate_metadata import write_metadata

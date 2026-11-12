@@ -140,7 +140,7 @@ def test_nominal_rate_agreement_does_not_reject_measurement_jitter(tmp_path):
             load_task_config(TASK, overrides={'fps': 50}).require_recording(root.attrs)
 
 
-def test_legacy_rate_must_be_explicit_and_cannot_override_saved_rate():
+def test_missing_rate_must_be_explicit_and_cannot_override_saved_rate():
     task = load_task_config(TASK)
     with pytest.raises(ValueError, match='no control_freq metadata'):
         task.require_recording({})

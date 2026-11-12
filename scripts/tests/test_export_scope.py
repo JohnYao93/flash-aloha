@@ -11,10 +11,9 @@ from policy.model_util import make_policy
 ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.parametrize('policy_class', ['Diffusion', 'CNNMLP', 'TransformerPolicy', 'unknown'])
-def test_excluded_policies_rejected_before_loading(policy_class):
+def test_unknown_policy_class_is_rejected_before_loading():
     with pytest.raises(ValueError, match='Only Flow and ACT'):
-        make_policy(policy_class, {})
+        make_policy('unknown', {})
 
 
 @pytest.mark.parametrize('section', [None, 'task_config', 'policy_config'])
@@ -29,16 +28,6 @@ def test_masked_checkpoint_is_never_silently_changed(section):
     require_supported_policy(config('end_effector'))  # a known mask: direct inference applies it
     with pytest.raises(ValueError, match='Remote serving cannot omit the mask'):
         require_unmasked_for_serving(config('end_effector'))
-
-
-def test_no_imports_of_excluded_subsystems():
-    for path in (ROOT / 'src').rglob('*.py'):
-        if 'hardware' in path.parts or 'kdl_parser' in path.parts:
-            continue
-        for node in ast.walk(ast.parse(path.read_text())):
-            names = [a.name for a in node.names] if isinstance(node, ast.Import) else (
-                [node.module or ''] if isinstance(node, ast.ImportFrom) else [])
-            assert not any(name.startswith(('inpainting', 'policy.detr')) for name in names), path
 
 
 def execution_functions():

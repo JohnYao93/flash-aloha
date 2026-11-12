@@ -143,16 +143,16 @@ def test_export_and_training_use_start_snapshot_not_current_npz(params, tmp_path
     with episode_store.Store(path) as root:
         assert json.loads(root.attrs['camera_settings']) == expected
     assert contract.dataset_camera_settings([path]) == expected
-    legacy = tmp_path/'legacy.zarr'
-    legacy_sample = recording.EpisodeSample(
+    unset = tmp_path/'unset.zarr'
+    unset_sample = recording.EpisodeSample(
         {'video_overhead': np.zeros((4, 6, 3), dtype=np.uint8)}, np.zeros(7), np.zeros(7), 0.)
-    recorded_samples([legacy_sample])
-    recording.write_episode(legacy, [legacy_sample], ['video_overhead'], 7, 7, metadata={'fps': 100})
-    assert contract.dataset_camera_settings([legacy, path]) == expected
-    with episode_store.Store(legacy, 'a') as root:
+    recorded_samples([unset_sample])
+    recording.write_episode(unset, [unset_sample], ['video_overhead'], 7, 7, metadata={'fps': 100})
+    assert contract.dataset_camera_settings([unset, path]) == expected
+    with episode_store.Store(unset, 'a') as root:
         root.attrs['camera_settings'] = contract.camera_settings_json(contract.snapshot_camera_settings(['video_overhead']))
     with pytest.raises(ValueError, match='camera settings mismatch'):
-        contract.dataset_camera_settings([path, legacy])
+        contract.dataset_camera_settings([path, unset])
 
 
 def test_yaml_contract_checks_known_values_and_can_be_cleared(params):

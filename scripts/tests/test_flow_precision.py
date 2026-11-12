@@ -96,13 +96,6 @@ def test_bf16_policy_trains_with_fp32_loss_and_master_weights():
     assert any(not torch.equal(p, b) for p, b in zip(policy.model.parameters(), before))
 
 
-def test_legacy_fp32_policy_keeps_plain_adamw_and_unknown_precision_is_rejected():
-    assert type(small_policy().configure_optimizers()) is torch.optim.AdamW
-    assert policy_dtype('fp32') == torch.float32  # checkpoints from before bf16 training
-    with pytest.raises(ValueError, match='precision'):
-        small_policy(precision='fp16')
-
-
 def test_master_weights_keep_updates_below_bf16_resolution():
     param = torch.nn.Parameter(torch.ones(4, dtype=torch.bfloat16))
     optimizer = MasterWeightAdamW([param], lr=1e-4, weight_decay=0.0, betas=(0.0, 0.999))

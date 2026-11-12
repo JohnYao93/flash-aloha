@@ -40,9 +40,9 @@ def test_raw_discovery_rejects_wrong_fps_and_episode_only(tmp_path):
     assert discover_episodes(raw,100)==[str(raw)]
     with pytest.raises(ValueError,match='FPS'):
         discover_episodes(raw,50)
-    legacy=tmp_path/'legacy';legacy.mkdir();(legacy/'episode_00000.zarr').touch()
+    exported=tmp_path/'exported';exported.mkdir();(exported/'episode_00000.zarr').touch()
     with pytest.raises(FileNotFoundError,match='raw'):
-        discover_episodes(legacy)
+        discover_episodes(exported)
 
 
 @pytest.mark.parametrize('module_name', ['inference.inference_remote'])
@@ -238,7 +238,7 @@ def test_native_live_loop_simulated_cleanup_and_exact_recording(monkeypatch, fai
         can_interface_left='can0',task_name='test'),cameras=['video_left'],action_dim=7,
         timing=SimpleNamespace(record=lambda *a:None,report_if_due=lambda **kw:None))
     monkeypatch.setattr(native,'PolicyRuntime',lambda *a:runtime)
-    # A legacy checkpoint: no robot_contract in the server metadata.
+    # A server that advertises no robot_contract in its metadata.
     monkeypatch.setattr(native,'WebsocketOpenPIClient',lambda *a:SimpleNamespace(server_metadata={},_ws=SimpleNamespace(close=lambda:events.append('client'))))
     class Session:
         step=queries=0
