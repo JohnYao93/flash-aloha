@@ -1,4 +1,6 @@
-# flash_aloha
+# Flash ALOHA: Learning Fast and Precise Manipulation
+
+Project website: johnyao93.github.io/flash-aloha
 
 Data collection, training and deployment for bimanual and single-arm manipulation
 with ARX arms (L5 and Trossen_L5): camera servers, hand-guided recording, ACT
