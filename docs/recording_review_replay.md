@@ -102,7 +102,9 @@ Gain equality is not an episode/checkpoint metadata requirement.
 `src/recording/replay_practice.py` (no task, no cameras, no episode saved) uses
 the same review replay for its in-memory take. Without cameras there is no
 overlay, and instead of the prompt its kp/kd fractions come from the keys
-described in the repository README.
+described in the repository README. Its `--graph` flag graphs each replay's
+commanded and achieved positions from the tracking log, in a separate process
+(`src/visualization/replay_tracking_graph.py`).
 
 The replay code is validated with fake controllers and clocks; that does not
 constitute a physical robot validation run.

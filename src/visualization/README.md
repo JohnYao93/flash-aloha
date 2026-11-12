@@ -6,6 +6,7 @@ live under `camera_utils/`.
 | File | Responsibility |
 | --- | --- |
 | [visualize_episode.py](visualize_episode.py) | Episode loading, Rerun display, annotations, video output, inference-chunk plots, and CLI dispatch |
+| [replay_tracking_graph.py](replay_tracking_graph.py) | Graph of commanded and achieved positions from a physical replay log (replay practice `--graph`) |
 | [visualization_utils/episode_visualization.py](visualization_utils/episode_visualization.py) | Inspection adapter over the shared exact-reference episode reader |
 | [visualization_utils/rerun_utils.py](visualization_utils/rerun_utils.py) | Rerun robot models, camera poses, annotation overlays, and logging; also used by inference |
 | [visualization_utils/training_preview.py](visualization_utils/training_preview.py) | Offline camera-resolution preview with unchanged recorded trajectories |

@@ -220,6 +220,37 @@ the default gains. The replay itself is the collector's review replay, so the
 same fractions scale the gripper gains too, and a failure or Ctrl+C enters
 damping until `h`.
 
+#### Graphing commanded and achieved position
+
+Add `--graph` to see how closely the arm followed each replay:
+
+```bash
+uv run src/recording/replay_practice.py --arms right --graph
+```
+
+After every replay that played (completed or stopped with `1`), a window opens
+with one panel per joint and the gripper, and one column per arm. Each panel
+plots the commanded position and the achieved (measured) position against time,
+with the RMS and largest error in its title and the kp and kd numbers at the
+top. This is helpful for visualizing whether predicted trajectories are being
+followed sufficiently: a replay sends its rows the way policy execution sends
+a policy's predicted actions, so the gap between the two lines here is the gap
+to expect when the arm runs a policy with these gains. A good result has the
+achieved line lying on the commanded one, trailing it only slightly, without
+overshoot at stops or ripple. A steady offset or growing lag calls for more
+kp; overshoot or ripple calls for less kp or more kd.
+
+The achieved position is read right after each target is sent, so it always
+trails the commanded line by about one sample. Windows stay open so you can
+compare replays at different gains; close them yourself, or they close when
+the tool quits. The graph is drawn by a separate process from the tracking log
+the replay already writes under `logs/replay/`, and is also saved there as
+`tracking.png`. To draw a graph for an earlier replay log:
+
+```bash
+uv run src/visualization/replay_tracking_graph.py logs/replay/<date>/<time>_practice_take
+```
+
 ### Camera preview and saved start poses
 
 To save a start pose for one task, pass its name; the task YAML supplies the

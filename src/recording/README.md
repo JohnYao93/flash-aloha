@@ -8,7 +8,7 @@ recording-adapter, action, and policy invariants remain in
 | --- | --- |
 | [record_episode_single.py](record_episode_single.py) | Hand-guided ARX collection, episode prompts, captured samples, and the shared ARX backend (`ARXBackend`) |
 | [record_hardware.py](record_hardware.py) | Recording of externally generated targets through the shared hardware runtime |
-| [replay_practice.py](replay_practice.py) | Record/replay practice without a task, cameras or saved data |
+| [replay_practice.py](replay_practice.py) | Record/replay practice without a task, cameras or saved data; `--graph` graphs each replay's commanded and achieved positions |
 | [pedal_keys.py](pedal_keys.py) | Foot-switch keys shared by the collector and review replay |
 | [distributed_recording.py](distributed_recording.py) | Camera lifecycle barriers, control-stream writer, coordinator, and episode publication |
 | [episode_buffer.py](episode_buffer.py) | Recording scopes, stream-backed sample buffers, lazy recorded images, and proprio logging |

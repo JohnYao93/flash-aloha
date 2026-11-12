@@ -18,6 +18,10 @@ Replay gains are two numbers, each a multiple of the tracking kp and kd:
 They can be changed at any time except while recording or replaying, apply to
 the next replay, and are not saved.
 
+With --graph, each replay that played is followed by a window graphing the
+commanded and achieved position of every joint, drawn from that replay's
+tracking log by a separate process.
+
 This is an operator of the collector's own pieces, used unchanged: the ARX
 backend, `standard_capture` via `EpisodeCapture`, and the collector's review
 replay (`recording_replay.replay_take`), including its tracking log under
@@ -33,6 +37,8 @@ if str(_ACT_ROOT) not in _path_sys.path:
     _path_sys.path.insert(0, str(_ACT_ROOT))
 
 import argparse
+import subprocess
+import sys
 import time
 
 import numpy as np
@@ -79,14 +85,62 @@ class ReplayGains:
         return True
 
 
-def replay_in_memory_take(backend, samples, gains, read_key):
+class TrackingGraphs:
+    """--graph: draw each replay's commanded and achieved positions in a separate process.
+
+    The replay already writes its tracking log (logs/replay). After it returns,
+    the graph script is started on that log directory; this process only lists
+    directories and starts the script, and draws nothing itself.
+    """
+
+    def __init__(self, arms, launch=None):
+        self.arms = {'both': ['Left arm', 'Right arm']}.get(arms, [f'{arms.capitalize()} arm'])
+        self.launch = launch or self._launch
+        self.processes = []
+
+    @staticmethod
+    def logs():
+        import config.paths
+        return set(config.paths.REPLAY_LOG_DIR.glob('*/*'))
+
+    def _launch(self, directory):
+        script = _ACT_ROOT / 'visualization' / 'replay_tracking_graph.py'
+        with open(directory / 'tracking_graph.log', 'w') as output:
+            # No terminal input or output: the key watcher owns the terminal.
+            return subprocess.Popen([sys.executable, str(script), str(directory), '--arms', *self.arms],
+                                    stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT)
+
+    def show_new(self, before, notify=print):
+        """Graph the replay log directories that appeared since `before`."""
+        for directory in sorted(self.logs() - before):
+            if not any(directory.glob('steps_*.npz')):
+                continue  # Cancelled or stopped before the first row.
+            try:
+                self.processes.append(self.launch(directory))
+            except OSError as error:
+                notify(f'Tracking graph not started: {error}')
+            else:
+                notify(f'Tracking graph: {directory / "tracking.png"} (window opens separately)')
+
+    def close(self):
+        for process in self.processes:
+            if process is not None and process.poll() is None:
+                process.terminate()
+        self.processes = []
+
+
+def replay_in_memory_take(backend, samples, gains, read_key, graphs=None):
     """The collector's review replay of the unsaved take; returns its result string."""
     from recording.recording_replay import replay_take, take_replay_source
     actions, camera, reference = take_replay_source(samples, [])
-    return replay_take(backend, actions, camera, reference, label='practice take',
-                       gain_scales=(gains.kp, gains.kd),
-                       poll_keys=lambda: [key for key in (read_key(),) if key],
-                       live_frame=lambda name: None)
+    before = graphs.logs() if graphs is not None else None
+    result = replay_take(backend, actions, camera, reference, label='practice take',
+                         gain_scales=(gains.kp, gains.kd),
+                         poll_keys=lambda: [key for key in (read_key(),) if key],
+                         live_frame=lambda name: None)
+    if graphs is not None:
+        graphs.show_new(before)
+    return result
 
 
 def build_context(arms, *, fps, can_left, can_right, start_position_path, move_duration):
@@ -173,6 +227,8 @@ def build_arg_parser():
                         help='Starting replay kd as a multiple of the default joint kd (default: 1).')
     parser.add_argument('--move-duration', type=float, default=3.0,
                         help='Seconds to reach the start pose and the first replay pose (default: 3).')
+    parser.add_argument('--graph', action='store_true',
+                        help='After each replay, show a graph of commanded and achieved joint positions.')
     return parser
 
 
@@ -193,11 +249,16 @@ def main(args):
                 backend.setup_for_recording()
                 backend.enable_passive_compensation()  # Practice starts with the arms released.
                 gains = ReplayGains(args.kp_scale, args.kd_scale)
+                graphs = TrackingGraphs(args.arms) if args.graph else None
+                replay = replay_in_memory_take if graphs is None else (
+                    lambda *replay_args: replay_in_memory_take(*replay_args, graphs=graphs))
                 try:
                     run(backend, read_key_nonblocking, fps=ctx.fps, make_capture=EpisodeCapture,
-                        replay=replay_in_memory_take, gains=gains)
+                        replay=replay, gains=gains)
                 finally:
                     print(f'Last used. {gains}')
+                    if graphs is not None:
+                        graphs.close()
     except QuitRequested:
         pass
     except BaseException:

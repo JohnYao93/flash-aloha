@@ -135,3 +135,48 @@ def test_gain_keys_outside_a_replay_only_change_the_numbers(clock):
              gains=gains, notify=log.append, sleep=clock.sleep)
     assert (gains.kp, gains.kd) == (1.1, 0.95)
     assert arm.passive_calls == 0 and 'kp x1.10, kd x0.95' in log[-1]
+
+
+def test_graph_flag_draws_each_played_replay_from_its_tracking_log(clock, tmp_path, monkeypatch):
+    """--graph starts the graph script on the log the replay wrote; the script draws that log."""
+    from types import SimpleNamespace
+    import config.paths
+    from visualization import replay_tracking_graph as graph
+    monkeypatch.setattr(config.paths, 'REPLAY_LOG_DIR', tmp_path)
+    monkeypatch.setenv('MPLBACKEND', 'Agg')
+    arm = Arm(14)
+    samples, _ = tool.record_take(arm, pedals([None] * 9 + ['3']), fps=100, notify=lambda _: None,
+                                  make_capture=lambda *a, **k: EpisodeCapture(*a, clock=clock, **k))
+
+    class Backend:
+        ctx = SimpleNamespace(fps=100.0)
+
+        def move_to_pose(self, qpos):
+            pass
+
+        def replay_rows(self, actions, *, fps, should_stop, kp_scale, kd_scale, log=None):
+            for index, row in enumerate(actions):
+                log.step(row=index, target=row.copy(), qpos=row - 0.01)
+            return True
+
+        def enter_motion_mode(self):
+            pass
+
+    launched = []
+    graphs = tool.TrackingGraphs('both', launch=launched.append)
+    keys = iter(['h'])                               # cancelled: no rows, so no graph
+    tool.replay_in_memory_take(Backend(), samples, tool.ReplayGains(), lambda: next(keys, None), graphs=graphs)
+    assert launched == []
+    keys = iter([None, '1'])
+    result = tool.replay_in_memory_take(Backend(), samples, tool.ReplayGains(kp=0.5, kd=0.75),
+                                        lambda: next(keys, None), graphs=graphs)
+    assert result == 'completed' and len(launched) == 1 and graphs.arms == ['Left arm', 'Right arm']
+
+    seconds, commanded, achieved, settings = graph.load_tracking(launched[0])
+    recorded = np.asarray([sample.qpos for sample in samples], dtype=np.float64)
+    np.testing.assert_allclose(commanded, recorded)
+    np.testing.assert_allclose(achieved, recorded - 0.01)
+    assert seconds[0] == 0 and (settings['kp_scale'], settings['kd_scale']) == (0.5, 0.75)
+    graph.main([str(launched[0]), '--arms', *graphs.arms, '--no-show'])
+    assert (launched[0] / graph.GRAPH_NAME).stat().st_size > 0
+    graphs.close()
