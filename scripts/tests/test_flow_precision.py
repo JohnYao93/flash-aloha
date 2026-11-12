@@ -35,7 +35,10 @@ def test_channels_last_layout_is_the_same_function_with_the_same_parameters():
     reference.model.diffusion.unet(x, time, global_cond=condition).square().sum().backward()
     for (name, param), other in zip(policy.model.named_parameters(), reference.model.parameters()):
         if param.grad is not None:
-            torch.testing.assert_close(param.grad, other.grad, rtol=1e-4, atol=1e-5, msg=name)
+            # float32 round-off differs between the two layouts' kernels (and between CPUs):
+            # allow 1e-5 of the gradient's largest entry, not a fixed 1e-5.
+            atol = 1e-5 * max(1.0, other.grad.abs().max().item())
+            torch.testing.assert_close(param.grad, other.grad, rtol=1e-4, atol=atol, msg=name)
 
 
 def test_serialized_weights_are_canonical_whatever_the_training_layout():
