@@ -1,0 +1,43 @@
+schema_version: 1
+task: single_arm
+model_name: single_arm_flow
+output_dir: ../../../ckpts
+model:
+  type: Flow
+  backbone: resnet18
+  # ImageNet-pretrained initialization (keeps BatchNorm; inference loads it from the checkpoint).
+  pretrained_backbone_weights: IMAGENET1K_V1
+  # One ResNet18 per camera; true shares a single encoder across cameras.
+  same_backbones: false
+  hidden_dim: 256
+  unet_depth: 3
+  # Predicted actions per chunk (128 = 1.28 s at 100 Hz). Owned here, not by the
+  # task; inference takes it from the checkpoint and rejects any other length.
+  # Must be a multiple of 2**unet_depth (8).
+  chunk_size: 128
+training:
+  method: standard
+  batch_size: 128
+  lr: 0.00012
+  num_steps: 100000
+  eval_every: 50000
+  validate_every: 4000
+  save_every: 20000
+  data_aug: true
+  wandb: true
+  finetune: false
+  training_time_rtc: true
+  # Speed (one GPU): decode video once into a cached frame store, torch.compile (training is
+  # always bf16), and sync wandb metrics every 50 steps.
+  frame_store: true
+  compile: true
+  # CUDA graphs (max-autotune) reserve ~3 GB of private pools for ~1% speed and OOM
+  # an 8 GB GPU at batch 128; default compiles in ~40 s at the same step time.
+  # Pass --compile_mode max-autotune on a 24 GB GPU.
+  compile_mode: default
+  num_dataloader_workers: 16
+  wandb_log_every: 50
+data:
+  # 1.0 is the default: train on every episode, no validation split.
+  # policy_best.ckpt is then the final weights. Set < 1 to hold episodes out.
+  train_ratio: 1.0

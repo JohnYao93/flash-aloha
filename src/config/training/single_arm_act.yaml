@@ -1,0 +1,37 @@
+schema_version: 1
+task: single_arm
+model_name: single_arm_act
+output_dir: ../../../ckpts
+# Decoder-only ACT (2 cameras, 1 arm). Training is bf16 with an ImageNet-pretrained ResNet18
+# per camera.
+model:
+  type: ACT
+  backbone: resnet18
+  hidden_dim: 512
+  dec_layers: 7
+  nheads: 8
+  dropout: 0.1
+  # Predicted actions per chunk (1.0 s at 100 Hz). Any length works for ACT.
+  chunk_size: 100
+training:
+  method: standard
+  batch_size: 128
+  lr: 0.00012
+  lr_backbone: 0.00001
+  num_steps: 100000
+  eval_every: 50000
+  validate_every: 4000
+  save_every: 20000
+  data_aug: true
+  wandb: true
+  finetune: false
+  training_time_rtc: false
+  frame_store: true
+  compile: true
+  compile_mode: default
+  num_dataloader_workers: 16
+  wandb_log_every: 50
+data:
+  # 1.0 is the default: train on every episode, no validation split.
+  # policy_best.ckpt is then the final weights. Set < 1 to hold episodes out.
+  train_ratio: 1.0

@@ -1,0 +1,20 @@
+schema_version: 1
+task: single_arm
+backend: direct
+checkpoint: ../../../ckpts/single_arm_flow/all_configs.json
+execution:
+  chunk_steps: 50
+  first_chunk_steps: 50
+blending:
+  method: sigmoid
+  steps: 10
+rtc:
+  training_time: true
+  enabled: false
+recording:
+  rollouts: false
+  dagger: false
+  eval: false
+  save_video: false
+options:
+  diffusion_inference_steps: 5

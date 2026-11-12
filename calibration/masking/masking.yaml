@@ -1,0 +1,84 @@
+# Masking configuration read by src/config/masking_config.py and src/utils/masking.py.
+# Everything about a mask is declared here: the calibration of one physical setup and the
+# strategies a training recipe can select with data.masking_strategy. See README.md.
+
+calibration:
+  # Width and height of the images the intrinsics were calibrated at. Masks are drawn at
+  # whatever resolution the policy uses: the intrinsics are rescaled to it.
+  image_size: [320, 180]
+  # Arm model used for forward kinematics, and the links masks can follow.
+  urdf: ../../src/hardware/arx5-sdk/models/X5.urdf
+  links: {wrist: link6, end_effector: eef_link}
+  joints_per_arm: 6            # each arm's state is these joints followed by its gripper
+  overhead_camera:
+    name: video_overhead
+    intrinsics: video_overhead_intri_imgs/video_overhead_intrinsics.npy
+  arms:                        # in state order
+    left:
+      wrist_camera: video_left
+      intrinsics: video_left_intri_imgs/video_left_intrinsics.npy
+      camera_on_end_effector: robot_video_left_hand/video_left_ee_to_camera.npy
+      base_in_overhead: head-to-robot_video_left_hand/head_to_robot_base.npz
+      mirror_y: true           # corners below are written for the right arm
+    right:
+      wrist_camera: video_right
+      intrinsics: video_right_intri_imgs/video_right_intrinsics.npy
+      camera_on_end_effector: robot_video_right_hand/video_right_ee_to_camera.npy
+      base_in_overhead: head-to-robot_video_right_hand/head_to_robot_base.npz
+
+# Reusable operations (YAML anchors). Corners are metres in a frame located at the named
+# link, with the axes of that arm's base.
+definitions:
+  # Overhead view: a rectangle 0.1 m below each wrist, covering the arm behind the gripper.
+  overhead_wrist_rectangle: &overhead_wrist_rectangle
+    project:
+      camera: overhead
+      frame: wrist
+      arm: self
+      corners: [[-0.15, -0.15, -0.1], [0.1, -0.15, -0.1], [0.1, 0.6, -0.1], [-0.35, 0.6, -0.1]]
+  # Wrist views: three rectangles around the other arm's end effector.
+  other_arm_side: &other_arm_side
+    project:
+      camera: wrist
+      frame: end_effector
+      arm: other
+      corners: [[-0.1, -0.6, -0.1], [-0.1, 0.1, -0.1], [-0.1, 0.1, 0.2], [-0.1, -0.6, 0.2]]
+  other_arm_top: &other_arm_top
+    project:
+      camera: wrist
+      frame: end_effector
+      arm: other
+      corners: [[-0.4, 0.1, 0.2], [-0.1, 0.1, 0.2], [-0.1, -0.6, 0.2], [-0.4, -0.6, 0.2]]
+  other_arm_bottom: &other_arm_bottom
+    project:
+      camera: wrist
+      frame: end_effector
+      arm: other
+      corners: [[-0.4, 0.1, -0.3], [-0.1, 0.1, -0.1], [-0.1, -0.6, -0.1], [-0.4, -0.6, -0.3]]
+  # Wrist views: a wall 0.7 m in front of the arm base, on the arm's own side.
+  front_wall: &front_wall
+    project:
+      camera: wrist
+      frame: base
+      arm: self
+      corners: [[0.7, 0, -0.25], [0.7, 1, -0.25], [0.7, 1, 0.5], [0.7, 0, 0.5]]
+  overhead_top_quarter: &overhead_top_quarter
+    region: {camera: overhead, x: [0, 1], y: [0, 0.25]}
+  overhead_left_columns: &overhead_left_columns
+    region: {camera: overhead, x: [0, 0.28125], y: [0, 1]}
+  overhead_right_columns: &overhead_right_columns
+    region: {camera: overhead, x: [0.734375, 1], y: [0, 1]}
+  no_proprioception: &no_proprioception
+    zero: proprioception
+
+# "prioproceptive" is the spelling existing recipes and checkpoints use.
+strategies:
+  end_effector: [*overhead_wrist_rectangle, *other_arm_side, *other_arm_top, *other_arm_bottom]
+  end_effector_and_prioproceptive: [*overhead_wrist_rectangle, *other_arm_side, *other_arm_top, *other_arm_bottom, *no_proprioception]
+  moving_block: [*front_wall, *overhead_top_quarter]
+  prioproceptive_and_moving_block: [*front_wall, *overhead_top_quarter, *no_proprioception]
+  prioproceptive: [*no_proprioception]
+  arm_cameras: [{blank: wrist}]
+  arm_cameras_and_prioproceptive: [{blank: wrist}, *no_proprioception]
+  overhead_left_90px: [*overhead_left_columns]
+  left_right_overhead: [*overhead_left_columns, *overhead_right_columns]

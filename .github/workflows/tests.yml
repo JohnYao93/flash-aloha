@@ -1,0 +1,24 @@
+# Offline test suite: synthetic observations and simulated hardware only.
+# No robot, camera or GPU is used; tests that need PyKDL or an OpenPI checkout skip.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential python3-dev
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install the project
+        run: uv sync --locked --extra dev
+      - name: Run the offline tests
+        run: uv run python -m pytest -q

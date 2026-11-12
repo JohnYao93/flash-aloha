@@ -1,0 +1,27 @@
+# Example task: one ARX arm, two cameras, 100 Hz.
+# For two arms use the arm block style of bimanual.yaml. See README.md in this
+# directory for every field.
+schema_version: 1
+task:
+  name: single_arm
+control_freq: 100
+data:
+  directory: ../../../data/single_arm
+robot:
+  type: arx
+  arms:
+    left:
+      model: L5
+      can_interface: can0
+      command_timeout_s: 0.5
+      max_feedback_age_s: 0.1
+cameras:
+  names: [video_overhead, video_left]
+camera_settings: {}
+collection:
+  max_duration_seconds: 15
+training:
+  observations: [qpos]
+  outputs: [action]
+  state_dim: 7
+  action_dim: 7

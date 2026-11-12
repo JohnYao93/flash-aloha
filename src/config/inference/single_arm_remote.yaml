@@ -1,0 +1,22 @@
+schema_version: 1
+task: single_arm
+backend: remote
+connection:
+  host: localhost
+  port: 8000
+execution:
+  chunk_steps: 50
+  first_chunk_steps: 50
+  async_inference: true
+  overlap_steps: 10
+blending:
+  method: none
+rtc:
+  training_time: true
+  enabled: true
+  prefix_steps: 10
+recording:
+  rollouts: false
+  dagger: false
+  eval: false
+  save_video: false

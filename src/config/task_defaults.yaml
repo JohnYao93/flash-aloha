@@ -1,0 +1,5 @@
+schema_version: 1
+camera_settings: {}
+training:
+  observations: [qpos]
+  outputs: [action]

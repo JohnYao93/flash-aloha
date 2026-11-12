@@ -1,0 +1,22 @@
+schema_version: 1
+task: bimanual
+backend: direct
+checkpoint: ../../../ckpts/bimanual_act/all_configs.json
+execution:
+  chunk_steps: 50
+  first_chunk_steps: 50
+blending:
+  method: sigmoid
+  steps: 5
+rtc:
+  training_time: false
+  enabled: false
+recording:
+  rollouts: false
+  dagger: false
+  eval: false
+  save_video: false
+options:
+  policy_step: 100000
+  # CUDA-graphed batch-1 ACT forward.
+  fast_inference: true

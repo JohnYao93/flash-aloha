@@ -1,0 +1,31 @@
+schema_version: 1
+task: single_arm
+backend: remote
+# An OpenPI checkpoint (for example Pi0.5) fine-tuned on this task's data and served from
+# an OpenPI checkout. The client letterboxes the task cameras per the image contract the
+# server advertises (docs/image_preprocessing.md); the server never resizes.
+connection:
+  # Override with --remote_host / --remote_port for a server on another machine.
+  host: localhost
+  port: 8000
+execution:
+  # The model's action horizon must hold chunk 50 + overlap 30.
+  chunk_steps: 50
+  first_chunk_steps: 50
+  async_inference: true
+  overlap_steps: 30
+blending:
+  method: none
+rtc:
+  # Trained with committed prefixes of 0..20 actions.
+  training_time: true
+  enabled: true
+  prefix_steps: 20
+recording:
+  rollouts: false
+  dagger: false
+  eval: false
+  save_video: false
+options:
+  # Exactly the export/training prompt.
+  prompt: describe the task exactly as in the training export

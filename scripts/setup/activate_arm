@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Run with the selected arm's controller stopped.
+set -euo pipefail
+
+if [[ $# -ne 1 || ! $1 =~ ^[01]$ ]]; then
+    echo "Usage: $0 {0|1}" >&2
+    exit 2
+fi
+
+interface="can$1"
+sudo ip link set "$interface" down
+sudo ip link set "$interface" type can bitrate 1000000
+sudo ip link set "$interface" up
+ip -details -statistics link show "$interface"

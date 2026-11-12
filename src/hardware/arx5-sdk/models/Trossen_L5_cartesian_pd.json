@@ -1,0 +1,28 @@
+{
+  "model": "Trossen_L5",
+  "axes": [
+    "x",
+    "y",
+    "z",
+    "rx",
+    "ry",
+    "rz"
+  ],
+  "kp": [
+    200.0,
+    200.0,
+    200.0,
+    16.0,
+    16.0,
+    16.0
+  ],
+  "kd": [
+    5.0,
+    5.0,
+    5.0,
+    0.2,
+    0.2,
+    0.2
+  ],
+  "cartesian_joint_velocity_filter_cutoff_hz": 0.0
+}
