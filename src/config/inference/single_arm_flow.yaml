@@ -18,3 +18,6 @@ recording:
   save_video: false
 options:
   diffusion_inference_steps: 5
+  # Same switch the ACT profiles set: channels-last fp16/bf16 convolutions and a
+  # CUDA-graphed U-Net step (~70 ms -> ~17 ms per query on the reference GPU).
+  fast_inference: true

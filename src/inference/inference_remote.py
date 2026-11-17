@@ -107,6 +107,13 @@ class PolicyRuntime:
         self.schema = metadata.get('request_schema', 'openpi')
         self.native = self.schema == 'native' or metadata.get('policy_family') == 'flash_aloha'
         self.openpi = metadata.get('model_family') == 'openpi'
+        self.image_width = self.image_height = None
+        if self.native:
+            # This repository's server advertises the checkpoint size; older or
+            # third-party native servers may not, and then frames go as captured.
+            width, height = metadata.get('width'), metadata.get('height')
+            if width is not None and height is not None:
+                self.image_width, self.image_height = int(width), int(height)
         self.model_action_dim = int(metadata.get('model_action_dim', self.action_dim))
         if not self.native:
             # The client letterboxes; the checkpoint's contract must match this process's pixels.
@@ -146,7 +153,16 @@ class PolicyRuntime:
                    'client/robot_action_dim': self.action_dim}
         if self.native:
             request['client/image_color_space'] = 'BGR'
-            request.update({f'observation/images/{name}': images[name] for name in self.cameras})
+            # The server would resize these to the checkpoint's size anyway; doing
+            # it here is the same shared INTER_AREA op on the same pixels and cuts
+            # the wire payload by the area ratio (16x for 1280x720 -> 320x180).
+            width, height = getattr(self, 'image_width', None), getattr(self, 'image_height', None)
+            if width is not None and height is not None:
+                frames = {name: standard_image_processing.resize_image(images[name], width, height)
+                          for name in self.cameras}
+            else:
+                frames = images
+            request.update({f'observation/images/{name}': frames[name] for name in self.cameras})
         else:
             request.update(standard_image_processing.openpi_request_images(images, self.image_contract))
             request['client/image_preprocessing_sha256'] = self.image_contract['fingerprint']['sha256']
@@ -215,9 +231,11 @@ class PolicySession:
                 current_chunk_step=self.chunk_step,current_chunk_start_index=self.chunk_start)
             rtc = self.runtime.rtc_metadata(prefix)
             if self.worker:
+                # capture_observation already returned private copies; the control
+                # loop never mutates this dict after submission.
                 self.worker.submit(image_dict=observation.images,qpos=observation.qpos,prompt=prompt,
                     query_index=self.queries,submit_chunk_step=self.chunk_step,submit_rollout_index=self.step,
-                    rtc_metadata=rtc,goal_generation=self.generation)
+                    rtc_metadata=rtc,goal_generation=self.generation,copy_inputs=False)
             else:
                 actions,_,_ = self.runtime.query(self.runtime.client,observation.images,observation.qpos,prompt,
                     query_index=self.queries,rtc_metadata=rtc)

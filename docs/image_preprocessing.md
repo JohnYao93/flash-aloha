@@ -30,9 +30,11 @@ sizes for direct versus served inference.
 
 The remote `inference_remote` client letterboxes each native camera frame itself and
 sends 448x448 HWC RGB uint8, about 4.6x fewer bytes than two native 1280x720 frames.
-The profile `openpi_letterbox_448` composes the standard operations: BGR->RGB, an
-INTER_LINEAR resize to fit (`letterbox_image`, 1280x720 -> 448x252), centered on a
-zero canvas (content rows 98..349). Its geometry, float truncation included, is that
+The profile `openpi_letterbox_448` composes the standard operations: an
+INTER_LINEAR letterbox to fit (`letterbox_image`, 1280x720 -> 448x252), centered on a
+zero canvas (content rows 98..349), then BGR->RGB. Resize and canvas are per channel,
+so the swap may run before or after with identical pixels; the client runs it after
+to touch only the 448x448 result. Its geometry, float truncation included, is that
 of `openpi_client.image_tools.resize_with_pad`, which OpenPI training applies to
 native frames. No resize is baked into recordings; training data for OpenPI must keep
 native pixels (BGR->RGB only).

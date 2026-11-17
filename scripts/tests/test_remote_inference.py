@@ -310,6 +310,26 @@ def test_native_live_loop_simulated_cleanup_and_exact_recording(monkeypatch, fai
         np.testing.assert_array_equal(sample['commanded_action'],original['qpos'])
 
 
+def test_native_client_sends_checkpoint_size_frames():
+    from inference import inference_remote as native
+    from contracts import standard_image_processing as images
+    runtime = object.__new__(native.PolicyRuntime)
+    runtime.native, runtime.openpi = True, False
+    runtime.cameras = ['video_left']
+    runtime.action_dim = runtime.horizon = runtime.model_action_dim = 7
+    runtime.image_width, runtime.image_height = 320, 180
+    class Client:
+        def infer_with_timing(self, request):
+            self.request = request
+            return {'actions': np.zeros((7, 7), np.float32)}, {}
+    client = Client()
+    frame = np.random.default_rng(0).integers(0, 256, (720, 1280, 3), dtype=np.uint8)
+    runtime.query(client, {'video_left': frame}, np.zeros(7, np.float32), '', query_index=0)
+    sent = client.request['observation/images/video_left']
+    assert sent.shape == (180, 320, 3)
+    np.testing.assert_array_equal(sent, images.resize_image(frame, 320, 180))
+
+
 def test_raw_metadata_and_goal_history_respect_saved_ids_and_gaps():
     from data_processing.episode_inputs import row_metadata, causal_goal_row
     root=SimpleNamespace(attrs={'openpi_prompt':'default'},

@@ -670,6 +670,26 @@ def hold_action_until_unpaused(action, controllers, commands, execution_dt,
     return hold_action
 
 
+def pace_until(deadline, *, yield_gil=False):
+    """Wait to an absolute perf-counter deadline without burning a core.
+
+    Sleeps in short slices and spins only the final 3 ms. A bare spin
+    previously consumed the whole inter-command interval (10 ms at 100 Hz) and
+    starved the camera/RTC threads for the GIL; a plain sleep overshoots the
+    kernel timer granularity. The deadline itself and the command instants are
+    unchanged. ``yield_gil`` keeps the old direct-RTC behavior of releasing the
+    GIL during the final spin so an in-process query worker can run.
+    """
+    while True:
+        remaining = deadline - time_V2.perf_counter()
+        if remaining <= 0:
+            return
+        if remaining > 0.003:
+            time_V2.sleep(min(remaining - 0.003, 0.001))
+        elif yield_gil:
+            time_V2.sleep(0)
+
+
 def reset_controllers_to_home(controllers, is_double_arm=False):
     """Return initialized controller(s) to ARX home during shutdown."""
     if not controllers:
@@ -883,11 +903,11 @@ def get_current_arm_state(task_config, controllers, state_dim=None):
 _last_observation_timestamps = {}
 
 
-def capture_current_observation(config, controllers, state_dim, camera_names):
+def capture_current_observation(config, controllers, state_dim, camera_names, *, include_images=True):
     global _last_observation_timestamps
     observation = standard_capture.capture_observation(
         lambda: fake_get_observations(state_dim) if DEBUG else get_observations(controllers),
-        camera_names, include_images=True)
+        camera_names, include_images=include_images)
     _last_observation_timestamps = {name: reference['capture_timestamp']
         for name, reference in observation.camera_observation['cameras'].items()}
     return observation
@@ -2294,8 +2314,8 @@ def eval_bc(config, ckpt_name, save_episode=False, num_rollouts=50, task_config=
         """Capture and preprocess step ``t``'s query observation again, as the query step does, so the
         query never uses inputs that aged meanwhile (step 0's capture precedes warm-up). Everything
         downstream (query, recording, logs) then uses the new observation."""
-        nonlocal captured_observation, obs, qpos_numpy, current_qvel, raw_image_dict, image_dict, qpos, curr_image
-        nonlocal query_overhead_frame_number, image_timestamp_dict
+        nonlocal captured_observation, obs, qpos_numpy, current_qvel, image_dict, qpos, curr_image
+        nonlocal query_overhead_frame_number
         captured_observation = capture_current_observation(config, controllers, state_dim, camera_names)
         obs, current_qvel = captured_observation.state, captured_observation.qvel
         qpos_numpy = standard_capture.policy_state(captured_observation, task_config, state_dim)[:state_dim]
@@ -2305,11 +2325,8 @@ def eval_bc(config, ckpt_name, save_episode=False, num_rollouts=50, task_config=
         if not DEBUG and 'video_overhead' in camera_names:
             query_overhead_frame_number = int(captured_observation.camera_observation[
                 'cameras']['video_overhead']['frame_number'])
-        raw_image_dict = {name: image.copy() for name, image in image_dict.items()}
         if compress_inference_images:
             image_dict = jpeg_compress_image_dict(image_dict, jpeg_quality=inference_jpeg_quality)
-        if record_rollout:
-            image_timestamp_dict = get_current_image_timestamps(rollout_camera_names)
         qpos_history_raw[t] = qpos_numpy
         qpos = torch.from_numpy(qpos_numpy).float()
         image_dict, qpos = masker.mask(image_dict, qpos)
@@ -2453,7 +2470,6 @@ def eval_bc(config, ckpt_name, save_episode=False, num_rollouts=50, task_config=
                     demo_id = 0
                     qpos_history_raw = np.zeros((max_timesteps, state_dim))
                     image_list = [] # for visualization
-                    qpos_list = []
                     target_qpos_list = []
                     action = start_action.copy() if start_action is not None else np.zeros((1, action_dim))
                     prev_action = action.copy()
@@ -2502,7 +2518,6 @@ def eval_bc(config, ckpt_name, save_episode=False, num_rollouts=50, task_config=
                                 else:
                                     should_query = is_query_point(chunk_t, first_chunk_size, query_frequency)
                                     rtc_submit = rtc_merge = False
-                                image_timestamp_dict = {}
                                 query_overhead_frame_number = -1
 
                                 if should_query:
@@ -2538,17 +2553,11 @@ def eval_bc(config, ckpt_name, save_episode=False, num_rollouts=50, task_config=
                                     if not DEBUG and 'video_overhead' in camera_names:
                                         query_overhead_frame_number = int(captured_observation.camera_observation[
                                             'cameras']['video_overhead']['frame_number'])
-                                    raw_image_dict = {
-                                        cam_name: image.copy()
-                                        for cam_name, image in image_dict.items()
-                                    }
                                     if compress_inference_images:
                                         image_dict = jpeg_compress_image_dict(
                                             image_dict,
                                             jpeg_quality=inference_jpeg_quality,
                                         )
-                                    if record_rollout:
-                                        image_timestamp_dict = get_current_image_timestamps(rollout_camera_names)
 
                                     qpos_history_raw[t] = qpos_numpy
                                     qpos = torch.from_numpy(qpos_numpy).float()
@@ -2593,7 +2602,10 @@ def eval_bc(config, ckpt_name, save_episode=False, num_rollouts=50, task_config=
                                         or (dagger_recorder is not None and dagger_recorder.active)
                                     )
                                 ):
-                                    captured_observation = capture_current_observation(config, controllers, state_dim, camera_names)
+                                    # Recording stores frame references, not pixels; only the
+                                    # optional episode video needs the decoded images.
+                                    captured_observation = capture_current_observation(
+                                        config, controllers, state_dim, camera_names, include_images=save_episode)
                                     obs = captured_observation.state
                                     qpos_numpy = standard_capture.policy_state(captured_observation, task_config, state_dim)
                                     current_qvel = captured_observation.qvel
@@ -2601,18 +2613,13 @@ def eval_bc(config, ckpt_name, save_episode=False, num_rollouts=50, task_config=
                                         qpos_numpy = qpos_numpy[:state_dim]
                                     if current_qvel is not None and current_qvel.shape[0] > state_dim:
                                         current_qvel = current_qvel[:state_dim]
-                                    image_dict = standard_capture.resized_images(captured_observation, config)
-                                    raw_image_dict = {
-                                        cam_name: image.copy()
-                                        for cam_name, image in image_dict.items()
-                                    }
-                                    if compress_inference_images:
-                                        image_dict = jpeg_compress_image_dict(
-                                            image_dict,
-                                            jpeg_quality=inference_jpeg_quality,
-                                        )
-                                    if record_rollout:
-                                        image_timestamp_dict = get_current_image_timestamps(rollout_camera_names)
+                                    if save_episode:
+                                        image_dict = standard_capture.resized_images(captured_observation, config)
+                                        if compress_inference_images:
+                                            image_dict = jpeg_compress_image_dict(
+                                                image_dict,
+                                                jpeg_quality=inference_jpeg_quality,
+                                            )
 
                                 if t == 0:
                                     # Warm up the policy
@@ -2624,7 +2631,7 @@ def eval_bc(config, ckpt_name, save_episode=False, num_rollouts=50, task_config=
                                         # Warm-up took a while since this step's capture: query fresh inputs.
                                         recapture_query_observation(t)
 
-                                time1 = time_V2.time() 
+                                time1 = time_V2.perf_counter()
 
                                 ### query policy
                                 # Flow and ACT share chunked execution; rtc_prefix_steps is nonzero only for
@@ -2779,9 +2786,8 @@ def eval_bc(config, ckpt_name, save_episode=False, num_rollouts=50, task_config=
                                                 print(f"action:{action}")
                                                 print(f"cur_position:{cur_position}")
                                                 set_action(action, controllers, commands, is_double_arm)
-                                                while execution_dt - (time_V2.time() - time1) > 0:
-                                                    pass
-                                                time1 = time_V2.time()
+                                                pace_until(time1 + execution_dt)
+                                                time1 = time_V2.perf_counter()
                                         
                                             print(f"new action:{new_action}")
                                 
@@ -3018,17 +3024,14 @@ def eval_bc(config, ckpt_name, save_episode=False, num_rollouts=50, task_config=
                                     visualization_frame = make_visualization_frame(image_dict, camera_names)
                                     if visualization_frame is not None:
                                         image_list.append(visualization_frame)
-                                qpos_list.append(qpos_numpy)
                                 target_qpos_list.append(action)
                             
-                                duration = time_V2.time() - time1
+                                duration = time_V2.perf_counter() - time1
                                 timing_stats.record('loop_total', duration)
                                 timing_stats.report_if_due(step=t, query_count=query_count)
-                                while (time_V2.time() - time1) < execution_dt:
-                                    if rtc_queries is not None:
-                                        # Yield the GIL: a pure spin starves the RTC query thread
-                                        # (~1.5 s instead of ~15 ms per query); step timing is unchanged.
-                                        time_V2.sleep(0)
+                                # Sleep rather than spin to the step deadline; a bare spin
+                                # burned a full core and starved the camera/RTC threads.
+                                pace_until(time1 + execution_dt, yield_gil=rtc_queries is not None)
                             
                                 if duration >= execution_dt:
                                     culmulated_delay += (duration - execution_dt)
