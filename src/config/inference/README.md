@@ -44,4 +44,5 @@ CUDA-graphs the batch-1 ACT forward (channels-last backbones), and speeds up Flo
 Conv2d with fp16 weights stored once (cuDNN otherwise reorders the weights on
 every call), and each U-Net step is replayed from a CUDA graph. The checkpoint,
 objective and sampler are unchanged; actions differ from fp32 by about 5e-4 rad.
-On an RTX 3070 Ti laptop GPU a Flow query takes ~17 ms instead of ~70 ms.
+On an RTX 3070 Ti laptop GPU a Flow query takes ~17 ms instead of ~70 ms. The
+shipped `single_arm_flow` and ACT profiles enable it.
