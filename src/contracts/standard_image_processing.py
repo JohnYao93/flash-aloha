@@ -60,7 +60,14 @@ def masking_strategy(config, requested=None):
 def convert_color(image, source_color, target_color):
     if source_color not in ("RGB", "BGR") or target_color not in ("RGB", "BGR"):
         raise ValueError(f"Unsupported color conversion {source_color!r} -> {target_color!r}")
-    return np.ascontiguousarray(image if source_color == target_color else image[..., ::-1])
+    if source_color == target_color:
+        return np.ascontiguousarray(image)
+    if image.ndim == 3 and image.shape[-1] == 3 and image.dtype in (np.uint8, np.float32):
+        # A SIMD channel swap; the negative-stride view below copies through a
+        # scalar path and dominates native-resolution OpenPI requests.
+        code = cv2.COLOR_BGR2RGB if source_color == "BGR" else cv2.COLOR_RGB2BGR
+        return cv2.cvtColor(image, code)
+    return np.ascontiguousarray(image[..., ::-1])
 
 
 def resize_image(image, width, height, *, interpolation=cv2.INTER_AREA):
@@ -89,10 +96,13 @@ def prepare_image(image, spec=ImageSpec(), *, source_color="BGR"):
 
 def image_to_chw(image, spec=ImageSpec(), *, source_color="BGR"):
     image = prepare_image(image, spec, source_color=source_color)
-    result = image.transpose(2, 0, 1).astype(np.float32) / np.float32(255.0)
+    # One contiguous float32 pass; astype()/divide on the transposed view each
+    # materialise the full image again before ascontiguousarray() does it once more.
+    result = np.ascontiguousarray(image.transpose(2, 0, 1), dtype=np.float32)
+    result /= np.float32(255.0)
     if spec.grayscale:
         result = np.repeat(result.mean(axis=0, keepdims=True), 3, axis=0)
-    return np.ascontiguousarray(result)
+    return result
 
 
 def inference_images(image_dict, *, camera_names=None, is_double_arm=False,
@@ -202,11 +212,16 @@ def openpi_request_images(images, contract):
     """Native BGR uint8 camera frames -> {request_key: model-resolution RGB uint8 letterbox}."""
     size = contract["model_image_shape"][0]
     request = {}
+    bgr_spec = ImageSpec(color="BGR")
     for name, camera in contract["cameras"].items():
         frame = np.asarray(images[name])
         if list(frame.shape) != camera["source_shape"] or frame.dtype != np.uint8:
             raise ValueError(f"{name}: expected uint8 {camera['source_shape']}; got {frame.dtype} {list(frame.shape)}")
-        request[camera["request_key"]] = letterbox_image(prepare_image(frame, source_color="BGR"), size, size)
+        # Letterbox before the channel swap: resize/canvas are per channel, so the
+        # result is identical, while the swap runs on the 448x448 result instead
+        # of the native frame.
+        boxed = letterbox_image(prepare_image(frame, bgr_spec, source_color="BGR"), size, size)
+        request[camera["request_key"]] = convert_color(boxed, "BGR", "RGB")
     return request
 
 
